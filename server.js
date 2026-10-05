@@ -54,4 +54,6 @@ A.post('/sound',express.raw({type:'*/*',limit:'15mb'}),(q,s)=>{fs.writeFileSync(
   db.settings.mime=q.get('content-type')||'audio/mpeg';db.settings.sound=true;db.settings.sv=Date.now();save();s.json({ok:1})});
 A.delete('/sound',(q,s)=>{try{fs.unlinkSync(SF)}catch{}db.settings.sound=false;save();s.json({ok:1})});
 app.use('/api/admin',A);
+app.get('/admin',(q,s)=>s.sendFile(path.join(__dirname,'public','admin.html')));
+app.get('/display',(q,s)=>s.sendFile(path.join(__dirname,'public','display.html')));
 app.listen(process.env.PORT||3000,()=>console.log('running'));
