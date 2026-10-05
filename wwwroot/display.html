@@ -1,0 +1,37 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>الشاشة الرئيسية</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="app.css"></head><body>
+<div id="ban" class="card" hidden style="background:#facc15;color:#14532d;text-align:center;font-size:24px;font-weight:800"></div>
+<div class="shell">
+ <div class="pane brand"><img src="/api/logo"><h2 class="T"></h2><p class="S"></p></div>
+ <div class="pane">
+  <div id="qb"><h1>امسح الرمز للدخول</h1><p class="mut" id="stt"></p><div id="qr" style="display:inline-block;background:#fff;padding:12px;border-radius:14px;margin:10px"></div>
+   <div class="mut">الوقت المتبقي</div><div class="big" id="cd">00:00</div></div>
+  <div id="cb" hidden style="width:100%"><h1>نتائج الامتحان</h1><div class="grid"><div><canvas id="c1"></canvas></div><div><canvas id="c2"></canvas></div></div></div>
+ </div></div>
+<div class="card"><h2>النتائج المباشرة</h2><table><thead><tr><th>الاسم</th><th>الفرع</th><th>الدرجة</th><th>الحالة</th></tr></thead><tbody id="tb"></tbody></table></div>
+<div class="foot F1"></div><div class="foot2 F2"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const $=i=>document.getElementById(i),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let P,R=[],st={state:'idle'},endL=0,ch=[];
+const pad=n=>String(n).padStart(2,'0'),mmss=ms=>pad(Math.floor(ms/60000))+':'+pad(Math.floor(ms/1000)%60);
+function setSt(s){st=s;endL=Date.now()+(s.end-s.now);const d=s.state=='done';$('qb').hidden=d;$('cb').hidden=!d;
+ $('stt').textContent=s.state=='idle'?'بانتظار بدء الامتحان':s.state=='running'?'الامتحان جارٍ الآن':'';if(d)charts()}
+function table(){$('tb').innerHTML=R.slice(0,60).map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.branch)}</td><td>${r.score}/${r.total} (${r.pct}%)</td><td class="${r.pass?'ok':'no'}">${r.pass?'ناجح ✅':'راسب ❌'}</td></tr>`).join('')}
+function charts(){ch.forEach(c=>c.destroy());const p=R.filter(r=>r.pass).length,br={};R.forEach(r=>{(br[r.branch]=br[r.branch]||[]).push(r.pct)});
+ ch=[new Chart($('c1'),{type:'doughnut',data:{labels:['ناجح','راسب'],datasets:[{data:[p,R.length-p],backgroundColor:['#16a34a','#dc2626']}]},options:{plugins:{title:{display:true,text:'الناجحون والراسبون'}}}}),
+ new Chart($('c2'),{type:'bar',data:{labels:Object.keys(br),datasets:[{label:'متوسط الدرجة %',data:Object.values(br).map(a=>Math.round(a.reduce((x,y)=>x+y,0)/a.length)),backgroundColor:'#2a9d62'}]},options:{scales:{y:{min:0,max:100}}}})]}
+async function refresh(){R=await(await fetch('/api/results')).json();table();if(st.state=='done')charts()}
+setInterval(()=>{const l=st.state=='running'?Math.max(0,endL-Date.now()):st.state=='idle'?P.min*60000:0;$('cd').textContent=mmss(l);
+ if(st.state=='running'&&l<=0)fetch('/api/state').then(r=>r.json()).then(s=>{setSt(s);refresh()})},250);
+(async()=>{P=await(await fetch('/api/public')).json();
+ for(const[k,v]of[['T',P.title],['S',P.sub],['F1',P.foot1],['F2',P.foot2]])document.querySelectorAll('.'+k).forEach(e=>e.textContent=v);
+ new QRCode($('qr'),{text:location.origin+'/',width:360,height:360,colorDark:'#0b4a2a'});
+ await refresh();setSt(P.state);
+ const c=new signalR.HubConnectionBuilder().withUrl('/hub').withAutomaticReconnect().build();
+ c.on('state',async s=>{await refresh();setSt(s)});
+ c.on('res',r=>{R.unshift(r);table();$('ban').hidden=false;$('ban').textContent=`${r.name} - ${r.branch}: ${r.score}/${r.total} - ${r.pass?'ناجح ✅':'راسب ❌'}`;setTimeout(()=>$('ban').hidden=true,5000)});
+ c.start()})();
+</script></body></html>

@@ -1,0 +1,36 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>لوحة المدير</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="app.css"></head><body>
+<div class="card" id="lg" style="max-width:420px" hidden><h2>دخول المدير</h2><input id="au" placeholder="اسم المستخدم"><input id="ap" type="password" placeholder="كلمة المرور"><p class="err" id="ae"></p><button class="btn" onclick="alogin()">دخول</button></div>
+<div id="app" hidden style="display:none;flex-direction:column;gap:16px;align-items:center;width:100%">
+<div class="card"><h2>التحكم بالامتحان <span id="ss" class="chip"></span></h2><div class="row"><button class="btn s" onclick="A('POST','/session/start').then(()=>stat())">▶ بدء الامتحان</button><button class="btn s r" onclick="A('POST','/session/stop').then(()=>stat())">⏹ إيقاف</button><button class="btn s o" onclick="A('POST','/session/reset').then(()=>stat())">↺ إعادة الشاشة للبداية</button><a href="/display" target="_blank" style="color:#0369a1">فتح الشاشة الكبيرة</a><button class="btn s o" onclick="fetch('/api/logout',{method:'POST'}).then(()=>location.reload())">خروج</button></div></div>
+<div class="card"><h2>الإعدادات والنصوص</h2><div class="grid">
+<div class="f">العنوان<input id="Title"></div><div class="f">النص التعريفي<input id="Sub"></div><div class="f">نص التذييل 1<input id="Foot1"></div><div class="f">نص التذييل 2<input id="Foot2"></div>
+<div class="f">مدة الامتحان (دقيقة)<input id="Min" type="number" min="1"></div><div class="f">عدد الأسئلة<input id="Count" type="number" min="1"></div><div class="f">درجة النجاح %<input id="Pass" type="number" min="0" max="100"></div><div class="f">مستوى الصوت<input id="Vol" type="range" min="0" max="1" step="0.05"></div></div>
+<button class="btn" onclick="saveCfg()">حفظ الإعدادات</button>
+<div class="row"><b>الشعار:</b><input type="file" id="lf" accept="image/*" style="width:auto"><button class="btn s" onclick="up('/logo','lf')">رفع</button><button class="btn s r" onclick="A('DELETE','/logo').then(()=>alert('تمت الاستعادة'))">الشعار الافتراضي</button></div>
+<div class="row"><b>الصوت التحفيزي:</b><input type="file" id="sf" accept="audio/*" style="width:auto"><button class="btn s" onclick="up('/sound','sf')">رفع</button><button class="btn s r" onclick="A('DELETE','/sound').then(load)">الصوت الافتراضي</button><span id="sn" class="chip"></span></div></div>
+<div class="card"><h2>الفروع</h2><div class="row"><input id="bn" placeholder="اسم الفرع" style="width:260px"><button class="btn s" onclick="A('POST','/branches',{name:$('bn').value}).then(()=>{$('bn').value='';load()})">إضافة</button></div><div class="row" id="bl"></div></div>
+<div class="card"><h2>الأسئلة (<span id="qc"></span>)</h2><input type="hidden" id="qid"><textarea id="qt" placeholder="نص السؤال"></textarea>
+<div id="qo"></div><button class="btn" onclick="saveQ()">حفظ السؤال</button><small>اختر الدائرة بجانب الإجابة الصحيحة</small><div id="ql"></div></div>
+<div class="card"><h2>النتائج</h2><button class="btn s r" onclick="if(confirm('حذف كل النتائج؟'))A('DELETE','/results').then(load)">حذف الكل</button><table><thead><tr><th>الاسم</th><th>الفرع</th><th>الدرجة</th><th>الحالة</th><th>الوقت</th><th></th></tr></thead><tbody id="rl"></tbody></table></div></div>
+<script>
+const $=i=>document.getElementById(i),J={'Content-Type':'application/json'},esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+$('qo').innerHTML=[0,1,2,3].map(i=>`<div class="row"><input type="radio" name="qc" value="${i}" style="width:auto" ${i?'':'checked'}><input id="o${i}" placeholder="الإجابة ${i+1}" style="flex:1"></div>`).join('');
+async function A(m,p,b,raw){const r=await fetch('/api/admin'+p,{method:m,headers:raw?{'Content-Type':raw.type||'application/octet-stream'}:J,body:raw||(b?JSON.stringify(b):undefined)});
+ if(r.status==401){$('app').style.display='none';$('lg').hidden=false;throw 0}const t=await r.text(),d=t?JSON.parse(t):{};if(d.error)alert(d.error);return d}
+async function alogin(){const r=await fetch('/api/alogin',{method:'POST',headers:J,body:JSON.stringify({user:$('au').value,pass:$('ap').value})});if(r.ok)start();else $('ae').textContent=(await r.json()).error}
+async function start(){$('lg').hidden=true;$('app').style.display='flex';load();stat();setInterval(stat,3000)}
+(async()=>{(await(await fetch('/api/me')).json()).role=='Admin'?start():$('lg').hidden=false})();
+async function stat(){const s=await(await fetch('/api/state')).json();$('ss').textContent=s.state=='idle'?'لم يبدأ':s.state=='running'?'جارٍ':'منتهٍ'}
+async function load(){
+ const c=await A('GET','/cfg');for(const k of['Title','Sub','Foot1','Foot2','Min','Count','Pass','Vol'])$(k).value=c[k.charAt(0).toLowerCase()+k.slice(1)];$('sn').textContent=c.hasSound?'صوت مرفوع':'الصوت الافتراضي';
+ const br=(await(await fetch('/api/public')).json()).branches;
+ $('bl').innerHTML=br.map(b=>`<span class="chip">${esc(b.name)} <a href="#" onclick="A('DELETE','/branches/${b.id}').then(load);return false">✖</a></span>`).join('');
+ const qs=await A('GET','/qs');window.QS=qs;$('qc').textContent=qs.length;$('ql').innerHTML=qs.map((q,i)=>`<div class="q"><b>${i+1}. ${esc(q.text)}</b>${q.opts.map((o,j)=>o?`<div class="${j==q.correct?'ok':''}">${j==q.correct?'✔':'•'} ${esc(o)}</div>`:'').join('')}<button class="btn s" onclick="editQ(${q.id})">تعديل</button> <button class="btn s r" onclick="A('DELETE','/qs/${q.id}').then(load)">حذف</button></div>`).join('');
+ const rs=await A('GET','/results');$('rl').innerHTML=rs.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.branch)}</td><td>${r.score}/${r.total} (${r.pct}%)</td><td class="${r.pass?'ok':'no'}">${r.pass?'ناجح':'راسب'}</td><td>${new Date(r.at+'Z').toLocaleString('ar-IQ')}</td><td><button class="btn s r" onclick="A('DELETE','/results/${r.id}').then(load)">حذف</button></td></tr>`).join('')}
+async function saveCfg(){const g=k=>$(k).value;await A('PUT','/cfg',{title:g('Title'),sub:g('Sub'),foot1:g('Foot1'),foot2:g('Foot2'),min:+g('Min'),count:+g('Count'),pass:+g('Pass'),vol:+g('Vol')});alert('تم الحفظ')}
+async function up(p,id){const f=$(id).files[0];if(!f)return;await A('PUT',p,null,f);alert('تم الرفع');load()}
+async function saveQ(){const id=$('qid').value,b={text:$('qt').value,opts:[0,1,2,3].map(i=>$('o'+i).value),correct:+document.querySelector('[name=qc]:checked').value};
+ const r=id?await A('PUT','/qs/'+id,b):await A('POST','/qs',b);if(!r.error){$('qid').value='';$('qt').value='';[0,1,2,3].forEach(i=>$('o'+i).value='');load()}}
+function editQ(id){const q=QS.find(x=>x.id==id);$('qid').value=id;$('qt').value=q.text;[0,1,2,3].forEach(i=>$('o'+i).value=q.opts[i]||'');document.querySelector(`[name=qc][value="${q.correct}"]`).checked=true;scrollTo(0,$('qt').offsetTop-100)}
+</script></body></html>

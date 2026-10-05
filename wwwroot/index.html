@@ -1,0 +1,44 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>الاختبار</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="app.css"></head><body>
+<div class="shell" id="login">
+ <div class="pane brand"><img src="/api/logo"><h2 class="T"></h2><p class="S"></p></div>
+ <div class="pane"><h1>ابدأ الاختبار</h1><p class="mut">اكتب اسمك واختر فرعك</p>
+  <label>الاسم الكامل</label><input id="u" autocomplete="name"><label>الفرع</label><select id="br"></select>
+  <p id="e" class="err"></p><button class="btn" onclick="login()">دخول الامتحان</button></div></div>
+<div id="msg" class="card" hidden style="text-align:center;max-width:720px"></div>
+<div id="ex" class="wrap" hidden><div id="tm"></div><div id="qs"></div><button class="btn" onclick="submit()">إنهاء الامتحان</button></div>
+<div class="foot F1"></div><div class="foot2 F2"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+<script>
+const $=i=>document.getElementById(i),J={'Content-Type':'application/json'},esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let P,S,tick,sent=0,cur=0,ac,iv,au;
+(async()=>{P=await(await fetch('/api/public')).json();
+ for(const[k,v]of[['T',P.title],['S',P.sub],['F1',P.foot1],['F2',P.foot2]])document.querySelectorAll('.'+k).forEach(e=>e.textContent=v);
+ $('br').innerHTML='<option value="">-- اختر الفرع --</option>'+P.branches.map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join('');
+ if((await(await fetch('/api/me')).json()).role=='Emp')enter()})();
+async function login(){const r=await fetch('/api/enter',{method:'POST',headers:J,body:JSON.stringify({name:$('u').value,branchId:+$('br').value||0})});
+ const d=await r.json().catch(()=>({}));if(!r.ok)return $('e').textContent=d.error||'تعذر الدخول';enter()}
+function show(t){$('msg').hidden=!t;$('msg').innerHTML=t}
+function enter(){$('login').hidden=true;
+ const c=new signalR.HubConnectionBuilder().withUrl('/hub').withAutomaticReconnect().build();c.on('state',go);
+ c.onreconnected(()=>fetch('/api/state').then(r=>r.json()).then(go));
+ c.start().then(()=>fetch('/api/state').then(r=>r.json()).then(go))}
+function go(st){if(sent)return;
+ if(cur){if(st.state!='running')submit();return}
+ if(st.state=='running')startExam();
+ else show(st.state=='idle'?'<h2>⏳ بانتظار بدء الامتحان</h2><p>سيبدأ الامتحان تلقائياً عندما يضغط المدير زر البدء</p>':'<h2>انتهى وقت الامتحان</h2>')}
+async function startExam(){cur=1;const r=await fetch('/api/exam/start',{method:'POST'}),d=await r.json();
+ if(!r.ok){cur=0;sent=1;return show('<h2>'+esc(d.error)+'</h2>')}
+ S=d;S.endL=Date.now()+(d.st.end-d.st.now);S.ans=d.qs.map(()=>-1);show('');$('ex').hidden=false;
+ $('qs').innerHTML=d.qs.map((x,i)=>`<div class="card q"><b>${i+1}. ${esc(x.text)}</b>${x.opts.map((o,j)=>o?`<label class="opt"><input type="radio" name="q${i}" onchange="S.ans[${i}]=${j}">${esc(o)}</label>`:'').join('')}</div>`).join('');
+ sound();tick=setInterval(()=>{const l=Math.max(0,S.endL-Date.now());$('tm').textContent='⏱ '+String(Math.floor(l/60000)).padStart(2,'0')+':'+String(Math.floor(l/1000)%60).padStart(2,'0');if(l<=0)submit()},250)}
+async function submit(){if(sent)return;sent=1;clearInterval(tick);stopSound();$('ex').hidden=true;
+ const r=await fetch('/api/exam/submit',{method:'POST',headers:J,body:JSON.stringify(S.ans)}),d=await r.json();
+ if(!r.ok)return show('<h2>'+esc(d.error)+'</h2>');
+ show(`<h2>${esc(d.name)}</h2><div class="big">${d.score}/${d.total}</div><h1 class="${d.pass?'ok':'no'}">${d.pass?'ناجح ✅':'راسب ❌'}</h1><p>النسبة: ${d.pct}%</p>`)}
+function sound(){try{if(P.hasSound){au=new Audio('/api/sound');au.loop=true;au.volume=P.vol;au.play().catch(()=>{});return}
+ ac=new(window.AudioContext||window.webkitAudioContext)();const g=ac.createGain();g.gain.value=P.vol*.25;g.connect(ac.destination);
+ const sc=[261.6,329.6,392,523.3,392,329.6,293.7,349.2,440,587.3,440,349.2];let i=0;
+ iv=setInterval(()=>{const o=ac.createOscillator();o.type='triangle';o.frequency.value=sc[i++%sc.length];o.connect(g);o.start();o.stop(ac.currentTime+.3)},320)}catch(e){}}
+function stopSound(){clearInterval(iv);try{au&&au.pause();ac&&ac.close()}catch(e){}}
+</script></body></html>
