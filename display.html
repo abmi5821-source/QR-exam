@@ -1,0 +1,10 @@
+<!doctype html><html lang="ar"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>الشاشة الرئيسية</title><link rel="stylesheet" href="s.css">
+<style>.w{display:flex;gap:24px;padding:24px;height:100vh}.q{flex:0 0 340px;text-align:center}.q img{width:100%;background:#fff;padding:12px;border-radius:14px}.l{flex:1;overflow:auto}td,th{font-size:22px}@media(max-width:800px){.w{flex-direction:column;height:auto}.q{flex:none}}</style></head><body>
+<div class="w"><div class="q"><h1 id="t"></h1><img src="/api/qr"><h2>امسح الرمز لبدء الامتحان</h2></div>
+<div class="l"><h1>النتائج المباشرة</h1><table><thead><tr><th>الاسم</th><th>الفرع</th><th>الدرجة</th><th>الحالة</th></tr></thead><tbody id="b"></tbody></table></div></div>
+<script>
+const es=new EventSource('/api/stream');
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+es.onmessage=e=>{const d=JSON.parse(e.data);document.getElementById('t').textContent=d.title;
+document.getElementById('b').innerHTML=d.r.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.branch)}</td><td>${x.score}/${x.total} (${x.pct}%)</td><td class="${x.pass?'ok':'no'}">${x.pass?'ناجح ✅':'راسب ❌'}</td></tr>`).join('')}
+</script></body></html>

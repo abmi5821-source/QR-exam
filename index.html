@@ -1,0 +1,30 @@
+<!doctype html><html lang="ar"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>الامتحان</title><link rel="stylesheet" href="s.css"></head><body><div class="c">
+<div id="login" class="card"><h2 id="t"></h2><p id="meta"></p><input id="n" placeholder="الاسم الكامل"><input id="b" placeholder="الفرع"><p id="e" class="no"></p><button onclick="start()">بدء الامتحان</button></div>
+<div id="quiz" hidden><div id="tm"></div><div id="qs"></div><button class="g" onclick="submit()">إنهاء وتسليم</button></div>
+<div id="res" class="card" hidden style="text-align:center"></div></div>
+<script>
+const $=i=>document.getElementById(i);let info,S,tick,ac,iv,au,sent=0;
+fetch('/api/info').then(r=>r.json()).then(i=>{info=i;$('t').textContent=i.title;$('meta').textContent=`عدد الأسئلة: ${i.count} | الوقت: ${i.duration} دقيقة | درجة النجاح: ${i.pass}%`});
+async function start(){
+ const r=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('n').value,branch:$('b').value})});
+ const d=await r.json();if(d.error)return $('e').textContent=d.error;
+ S=d;S.endL=Date.now()+(d.end-d.now);S.ans=d.qs.map(()=>-1);
+ $('login').hidden=true;$('quiz').hidden=false;
+ $('qs').innerHTML=d.qs.map((x,i)=>`<div class="card"><b>${i+1}. ${esc(x.q)}</b>${x.o.map((o,j)=>o?`<label class="o"><input type="radio" name="q${i}" onchange="S.ans[${i}]=${j}">${esc(o)}</label>`:'').join('')}</div>`).join('');
+ sound();tick=setInterval(()=>{const l=Math.max(0,S.endL-Date.now());$('tm').textContent='⏱ '+String(Math.floor(l/60000)).padStart(2,'0')+':'+String(Math.floor(l/1000)%60).padStart(2,'0');if(l<=0)submit()},250);
+}
+async function submit(){
+ if(sent)return;sent=1;clearInterval(tick);stopSound();
+ const r=await(await fetch('/api/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:S.id,answers:S.ans})})).json();
+ $('quiz').hidden=true;$('res').hidden=false;
+ $('res').innerHTML=`<h2>${esc(r.name)}</h2><h1>${r.score} / ${r.total} (${r.pct}%)</h1><h1 class="${r.pass?'ok':'no'}">${r.pass?'ناجح ✅':'راسب ❌'}</h1>`;
+}
+function sound(){
+ try{if(info.sound){au=new Audio('/sound?'+info.sv);au.loop=true;au.volume=info.volume;au.play().catch(()=>{});return}
+ ac=new(window.AudioContext||window.webkitAudioContext)();const g=ac.createGain();g.gain.value=info.volume*.25;g.connect(ac.destination);
+ const sc=[261.6,329.6,392,523.3,392,329.6,293.7,349.2,440,587.3,440,349.2];let i=0;
+ iv=setInterval(()=>{const o=ac.createOscillator();o.type='triangle';o.frequency.value=sc[i++%sc.length];o.connect(g);o.start();o.stop(ac.currentTime+.3)},320)}catch(e){}
+}
+function stopSound(){clearInterval(iv);try{au&&au.pause();ac&&ac.close()}catch(e){}}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+</script></body></html>
